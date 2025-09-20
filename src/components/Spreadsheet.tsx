@@ -7,7 +7,12 @@ interface CellData {
   formula?: string;
 }
 
-export const Spreadsheet: React.FC = () => {
+interface SpreadsheetProps {
+  listItems?: any[];
+  quotationResponses?: any[];
+}
+
+export const Spreadsheet: React.FC<SpreadsheetProps> = ({ listItems = [], quotationResponses = [] }) => {
   const [data, setData] = useState<Record<string, CellData>>({});
   const [selectedCell, setSelectedCell] = useState<string | null>('A1');
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -15,6 +20,49 @@ export const Spreadsheet: React.FC = () => {
 
   const ROWS = 100;
   const COLUMNS = 26; // A-Z
+
+  // Populate spreadsheet with list items when they change
+  React.useEffect(() => {
+    if (listItems.length > 0) {
+      const newData: Record<string, CellData> = {};
+      
+      // Headers
+      newData['A1'] = { value: 'Código Interno' };
+      newData['B1'] = { value: 'Descrição' };
+      newData['C1'] = { value: 'Código de Barras' };
+      
+      // Add supplier columns
+      const suppliers = [...new Set(quotationResponses.map(r => r.supplier_id))];
+      suppliers.forEach((supplierId, index) => {
+        const col = String.fromCharCode(68 + index); // D, E, F, etc.
+        newData[`${col}1`] = { value: `Fornecedor ${index + 1}` };
+      });
+
+      // Populate data rows
+      listItems.forEach((item, index) => {
+        const row = index + 2; // Start from row 2 (after header)
+        newData[`A${row}`] = { value: item.internal_code || '' };
+        newData[`B${row}`] = { value: item.product_description || '' };
+        newData[`C${row}`] = { value: item.barcode || '' };
+        
+        // Add quotation responses for this item
+        suppliers.forEach((supplierId, supplierIndex) => {
+          const col = String.fromCharCode(68 + supplierIndex);
+          const response = quotationResponses.find(r => 
+            r.supplier_id === supplierId && 
+            r.product_id === item.id
+          );
+          if (response) {
+            newData[`${col}${row}`] = { 
+              value: `R$ ${response.price?.toFixed(2) || '0.00'}` 
+            };
+          }
+        });
+      });
+
+      setData(newData);
+    }
+  }, [listItems, quotationResponses]);
 
   const getColumnLetter = (index: number): string => {
     return String.fromCharCode(65 + index);
